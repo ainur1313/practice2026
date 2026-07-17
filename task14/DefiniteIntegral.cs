@@ -3,29 +3,7 @@ using System.Threading;
 
 namespace task14
 {
-    public static class OneThread
-    {
-        public static double Solve(double a, double b, Func<double, double> function, double step)
-        {
-            double segmentLength = b - a;
-            if (segmentLength <= 0) return 0.0;
-
-            int stepsCount = Math.Max(1, (int)Math.Ceiling(segmentLength / step));
-            double actualStep = segmentLength / stepsCount;
-            double result = 0.0;
-
-            for (int i = 0; i < stepsCount; i++)
-            {
-                double xLeft = a + i * actualStep;
-                double xRight = xLeft + actualStep;
-                double fLeft = function(xLeft);
-                double fRight = function(xRight);
-                result += (fLeft + fRight) / 2.0 * actualStep;
-            }
-
-            return result;
-        }
-    }
+    
     public class DefiniteIntegral
     {
         public static double Solve(double a, double b, Func<double, double> function, double step, int threadsCount)
