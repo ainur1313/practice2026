@@ -9,7 +9,9 @@ namespace task17
     {
         private readonly Thread _thread;
         private readonly BlockingCollection<ICommand> _queue = new BlockingCollection<ICommand>();
+        private readonly IScheduler _scheduler = new RoundRobinScheduler();
         private volatile bool _hardStopRequested;
+        private volatile bool _softStopRequested;
 
         public ServerThread()
         {
@@ -31,8 +33,28 @@ namespace task17
 
         private void Run()
         {
-            foreach (var command in _queue.GetConsumingEnumerable())
+            while (true)
             {
+                if (_hardStopRequested)
+                    break;
+
+                ICommand command = null;
+
+                if (_scheduler.HasCommand())
+                {
+                    command = _scheduler.Select();
+                }
+                else if (_queue.TryTake(out command, 100))
+                {
+                }
+                else
+                {
+                    continue;
+                }
+
+                if (command == null)
+                    continue;
+
                 try
                 {
                     command.Execute();
@@ -46,7 +68,12 @@ namespace task17
                     ExceptionHandler.Handle(command, ex);
                 }
 
-                if (_hardStopRequested)
+                if (command is IRepeatable repeatable && !repeatable.IsFinished())
+                {
+                    _scheduler.Add(command);
+                }
+
+                if (_softStopRequested && !_scheduler.HasCommand() && _queue.Count == 0)
                     break;
             }
         }
@@ -67,6 +94,7 @@ namespace task17
                 throw new InvalidOperationException(
                     "SoftStop must be called from the server thread");
 
+            _softStopRequested = true;
             _queue.CompleteAdding();
         }
     }

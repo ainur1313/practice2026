@@ -11,13 +11,15 @@ namespace task17tests
         {
             var server = new ServerThread();
             int counter = 0;
+            var done = new ManualResetEventSlim(false);
 
             server.AddCommand(new TestCommand(() => Interlocked.Increment(ref counter)));
             server.AddCommand(new TestCommand(() => Interlocked.Increment(ref counter)));
+            server.AddCommand(new TestCommand(() => done.Set()));
             server.AddCommand(new SoftStopCommand(server));
 
             server.Start();
-            Thread.Sleep(2000);
+            done.Wait(5000);
 
             Assert.Equal(2, counter);
         }
@@ -33,7 +35,7 @@ namespace task17tests
             server.AddCommand(new TestCommand(() => Interlocked.Increment(ref counter)));
 
             server.Start();
-            Thread.Sleep(2000);
+            Thread.Sleep(1000);
 
             Assert.Equal(1, counter);
         }
@@ -55,6 +57,28 @@ namespace task17tests
 
             Assert.Throws<InvalidOperationException>(() => server.SoftStop());
         }
+
+        [Fact]
+        public void RepeatableCommand_Should_BeRescheduled()
+        {
+            var server = new ServerThread();
+            var repeatable = new RepeatableCommand(3);
+            int counter = 0;
+            var done = new ManualResetEventSlim(false);
+
+            server.AddCommand(repeatable);
+            server.AddCommand(new TestCommand(() => Interlocked.Increment(ref counter)));
+            server.AddCommand(new TestCommand(() => done.Set()));
+            server.AddCommand(new SoftStopCommand(server));
+
+            server.Start();
+            done.Wait(5000);
+
+            Assert.Equal(1, counter);
+            Assert.True(repeatable.CallCount >= 3);
+        }
+
+        
     }
 
     internal class TestCommand : ICommand
@@ -69,6 +93,27 @@ namespace task17tests
         public void Execute()
         {
             _action();
+        }
+    }
+
+    internal class RepeatableCommand : ICommand, IRepeatable
+    {
+        private readonly int _totalCalls;
+        public int CallCount { get; private set; }
+
+        public RepeatableCommand(int totalCalls)
+        {
+            _totalCalls = totalCalls;
+        }
+
+        public void Execute()
+        {
+            CallCount++;
+        }
+
+        public bool IsFinished()
+        {
+            return CallCount >= _totalCalls;
         }
     }
 }
